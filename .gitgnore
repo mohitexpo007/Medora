@@ -1,0 +1,74 @@
+# =====================
+# Secrets / Env
+# =====================
+.env
+.env.*
+*.env
+
+# =====================
+# Python
+# =====================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+pip-wheel-metadata/
+
+# =====================
+# Node / JS
+# =====================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =====================
+# Flutter / Dart
+# =====================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.apk
+*.aab
+
+# Android
+android/.gradle/
+android/local.properties
+android/app/debug/
+android/app/release/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/App.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# =====================
+# IDE / System
+# =====================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# =====================
+# Logs / Outputs
+# =====================
+*.log
+OUTPUT_*.json
+OUTPUT_*.txt
+
+# =====================
+# Large files (optional)
+# =====================
+*.zip
+*.gz
+*.rar
+*.7z
