@@ -3,23 +3,26 @@ import 'package:flutter/material.dart';
 /// Utility class for selecting appropriate animation assets based on
 /// clinical summary text and diagnoses.
 class AnimationSelector {
-  // Animation asset paths
-  static const String heart = 'assets/animations/organs/heart.mp4';
-  static const String brain = 'assets/animations/organs/brain.mp4';
-  static const String lungs = 'assets/animations/organs/lungs.mp4';
-  static const String pancreas = 'assets/animations/organs/pancreas.mp4';
-  static const String kidneys = 'assets/animations/organs/kidneys.mp4';
-  static const String stomach = 'assets/animations/organs/stomach.mp4';
-  static const String intestines = 'assets/animations/organs/intestines.mp4';
-  static const String bloodVessels = 'assets/animations/organs/blood_vessels.mp4';
+  // Animation asset paths (matching actual file structure)
+  // Made public for use by GeminiVideoSelector
+  static const String brain = 'assets/animations/brain.mp4';
+  static const String lungs = 'assets/animations/lungs.mp4';
+  static const String pancreas = 'assets/animations/pancreas.mp4';
+  static const String kidneys = 'assets/animations/kidneys.mp4';
+  static const String stomach = 'assets/animations/stomach.mp4';
+  static const String intestines = 'assets/animations/intestines.mp4';
+  static const String bloodVessels = 'assets/animations/blood_vessels.mp4';
   static const String nervousSystem = 'assets/animations/nervous_system.mp4';
-  static const String bodyHandRed = 'assets/animations/regions/body_hand_red.mp4';
-  static const String bodyLegRed = 'assets/animations/regions/body_leg_red.mp4';
-  static const String bodyGeneralUncertain = 'assets/animations/fallback/body_general_uncertain.mp4';
+  static const String bodyHandRed = 'assets/animations/body_hand_red.mp4';
+  static const String bodyLegRed = 'assets/animations/body_leg_red.mp4';
+  static const String bodyGeneralUncertain = 'assets/animations/body_general_uncertain.mp4';
+  
+  // Heart-related conditions map to blood vessels (cardiovascular system)
+  static const String heart = bloodVessels;
 
   /// Organ-based keyword mappings (Priority 1)
   static final Map<String, String> _organKeywords = {
-    // Heart
+    // Heart / Cardiac
     'heart': heart,
     'cardiac': heart,
     'myocardial': heart,
@@ -27,6 +30,16 @@ class AnimationSelector {
     'cardiovascular': heart,
     'arrhythmia': heart,
     'coronary': heart,
+    'acs': heart,  // Acute Coronary Syndrome
+    'nstemi': heart,  // Non-ST elevation MI
+    'stemi': heart,  // ST elevation MI
+    'angina': heart,
+    'exertional': heart,  // Exertional pain = cardiac
+    'chest pain': heart,
+    'chest discomfort': heart,
+    'mi': heart,  // Myocardial Infarction
+    'ischemia': heart,
+    'ischemic': heart,
     
     // Brain / Neuro
     'stroke': brain,
@@ -177,13 +190,32 @@ class AnimationSelector {
         normalizedSummary.contains('thoracic pain') ||
         normalizedDiagnoses.any((d) => d.contains('chest'))) {
       // Try to map to heart/lungs, otherwise fallback
-      if (normalizedSummary.contains('heart') || normalizedSummary.contains('cardiac')) {
-        return heart;
+      // Check for cardiac indicators first (exertional pain is STRONG cardiac indicator)
+      if (normalizedSummary.contains('exertional') || 
+          normalizedSummary.contains('worse on exertion') ||
+          normalizedSummary.contains('heart') || 
+          normalizedSummary.contains('cardiac') ||
+          normalizedSummary.contains('acs') ||
+          normalizedSummary.contains('nstemi') ||
+          normalizedSummary.contains('stemi') ||
+          normalizedSummary.contains('angina') ||
+          normalizedSummary.contains('myocardial') ||
+          normalizedSummary.contains('ischemia') ||
+          normalizedDiagnoses.any((d) => d.contains('cardiac') || d.contains('acs') || d.contains('nstemi') || d.contains('stemi') || d.contains('angina'))) {
+        return bloodVessels; // Heart maps to blood vessels
       }
       if (normalizedSummary.contains('lung') || normalizedSummary.contains('respiratory')) {
         return lungs;
       }
-      return bodyGeneralUncertain;
+      // Default chest pain to cardiac if no clear respiratory cause
+      return bloodVessels;
+    }
+    
+    // Check for exertional pain even without explicit chest pain mention
+    if (normalizedSummary.contains('exertional') || 
+        normalizedSummary.contains('worse on exertion') ||
+        normalizedSummary.contains('pain on exertion')) {
+      return bloodVessels; // Exertional pain = cardiac
     }
 
     // Priority 4: Fallback

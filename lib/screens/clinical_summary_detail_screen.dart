@@ -3,6 +3,8 @@ import 'dart:ui';
 import '../theme/app_theme.dart';
 import '../utils/animation_selector.dart';
 import '../widgets/clinical_animation_player.dart';
+import '../widgets/animated_tab_row.dart';
+import 'home_screen.dart';
 
 class ClinicalSummaryDetailScreen extends StatefulWidget {
   final String patientName;
@@ -36,6 +38,7 @@ class _ClinicalSummaryDetailScreenState
   late Animation<double> _pageFade;
   late Animation<Offset> _pageSlide;
   final Map<int, bool> _expandedDiagnoses = {};
+  int _selectedTabIndex = 0;
 
   // Get summary points from summary text (split by sentences)
   List<String> get summaryPoints {
@@ -209,59 +212,80 @@ class _ClinicalSummaryDetailScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppTheme.lightLavender,
-              AppTheme.softBlue,
-              AppTheme.lightPink,
-            ],
-            stops: [0.0, 0.5, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _pageFade,
-            child: SlideTransition(
-              position: _pageSlide,
-              child: Column(
-                children: [
-                  // App Bar
-                  _buildAppBar(),
-                  // Content
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 20),
-                          // Top Animation Section
-                          _buildAnimationSection(),
-                          const SizedBox(height: 24),
-                          // Case Information
-                          _buildCaseInfo(),
-                          const SizedBox(height: 24),
-                          // Summary Section
-                          _buildSummarySection(),
-                          const SizedBox(height: 20),
-                          // Diagnosis Section
-                          _buildDiagnosisSection(),
-                          const SizedBox(height: 20),
-                          // Key Findings Section
-                          _buildKeyFindingsSection(),
-                          const SizedBox(height: 24),
-                          // Action Buttons
-                          _buildActionButtons(),
-                          const SizedBox(height: 40),
-                        ],
-                      ),
+      backgroundColor: Colors.white,
+      bottomNavigationBar: null, // Explicitly remove bottom navigation
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _pageFade,
+          child: SlideTransition(
+            position: _pageSlide,
+            child: Column(
+              children: [
+                // App Bar
+                _buildAppBar(),
+                // Main Content Card with Tabs
+                Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        // Tabs
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: AnimatedTabRow(
+                            tabs: const [
+                              TabItem(
+                                title: 'Summary',
+                                icon: Icons.description_outlined, // FileText
+                              ),
+                              TabItem(
+                                title: 'Diff Dx',
+                                icon: Icons.medical_services_outlined, // Stethoscope
+                              ),
+                              TabItem(
+                                title: 'Symptoms',
+                                icon: Icons.analytics_outlined, // Activity
+                              ),
+                              TabItem(
+                                title: 'RAG Evidence',
+                                icon: Icons.search_outlined, // SearchCheck
+                              ),
+                            ],
+                            selectedIndex: _selectedTabIndex,
+                            onTabSelected: (index) {
+                              setState(() {
+                                _selectedTabIndex = index;
+                              });
+                            },
+                            containerColor: Colors.grey[100]!,
+                            indicatorColor: AppTheme.blueViolet,
+                            selectedTextColor: Colors.white,
+                            unselectedTextColor: AppTheme.darkGray,
+                            containerBorderRadius: const BorderRadius.all(Radius.circular(12)),
+                            indicatorBorderRadius: const BorderRadius.all(Radius.circular(12)),
+                            padding: const EdgeInsets.all(4),
+                          ),
+                        ),
+                        // Content
+                        Expanded(
+                          child: _buildTabContent(),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -269,28 +293,92 @@ class _ClinicalSummaryDetailScreenState
     );
   }
 
+  Widget _buildTabContent() {
+    switch (_selectedTabIndex) {
+      case 0:
+        return _buildClinicalSummaryTab();
+      case 1:
+        return _buildDifferentialDiagnosisTab();
+      case 2:
+        return _buildSymptomAnalysisTab();
+      case 3:
+        return _buildRAGEvidenceTab();
+      default:
+        return _buildClinicalSummaryTab();
+    }
+  }
+
   Widget _buildAppBar() {
-    return Padding(
+    return Container(
       padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.blueViolet, AppTheme.violet],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppTheme.darkGray),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const Expanded(
-            child: Text(
-              'Clinical Summary',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.darkGray,
-                letterSpacing: -0.5,
+          // Back Button - Navigate to Home Screen
+          Material(
+            color: Colors.white.withOpacity(0.25),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  (route) => false, // Remove all previous routes
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                child: const Icon(
+                  Icons.arrow_back_ios_new,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
-              textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(width: 48), // Balance the back button
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Row(
+              children: [
+                Icon(
+                  Icons.psychology,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                SizedBox(width: 12),
+                Text(
+                  'GenAI Clinical Analysis',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.25),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'Completed',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -385,61 +473,65 @@ class _ClinicalSummaryDetailScreenState
 
   Widget _buildSummarySection() {
     return _buildGlassCard(
-      title: 'Clinical Summary',
+      title: 'Patient Presentation',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: summaryPoints.asMap().entries.map((entry) {
-          final index = entry.key;
-          final point = entry.value;
-          return TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0.0, end: 1.0),
-            duration: Duration(milliseconds: 400 + (index * 100)),
-            curve: Curves.easeOut,
-            builder: (context, value, child) {
-              return Opacity(
-                opacity: value,
-                child: Transform.translate(
-                  offset: Offset(0, 20 * (1 - value)),
-                  child: child,
-                ),
-              );
-            },
-            child: Padding(
-              padding: EdgeInsets.only(bottom: index < summaryPoints.length - 1 ? 12 : 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 6, right: 12),
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: AppTheme.blueViolet,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      point,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.darkGray,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                ],
+        children: [
+          if (widget.summaryText.isNotEmpty) ...[
+            const Text(
+              'Clinical Presentation',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.darkGray,
               ),
             ),
-          );
-        }).toList(),
+            const SizedBox(height: 8),
+            Text(
+              widget.summaryText,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.darkGray,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          // Timeline
+          const Text(
+            'Timeline',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.darkGray,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.access_time,
+                size: 16,
+                color: AppTheme.mediumGray,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _formatDateTime(widget.date),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.darkGray,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildDiagnosisSection() {
     return _buildGlassCard(
-      title: 'Likely Diagnoses',
+      title: 'Differential Diagnosis',
       child: Column(
         children: diagnoses.asMap().entries.map((entry) {
           final index = entry.key;
@@ -469,10 +561,10 @@ class _ClinicalSummaryDetailScreenState
       child: Container(
         margin: EdgeInsets.only(bottom: index < diagnoses.length - 1 ? 12 : 0),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.grey[300]!,
             width: 1,
           ),
         ),
@@ -751,6 +843,366 @@ class _ClinicalSummaryDetailScreenState
     );
   }
 
+  // Tab Content Builders
+  Widget _buildClinicalSummaryTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          // AI Generated Summary Section
+          _buildAIGeneratedSummary(),
+          const SizedBox(height: 20),
+          // Patient Presentation
+          _buildSummarySection(),
+          const SizedBox(height: 20),
+          // Key Findings
+          _buildKeyFindingsSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAIGeneratedSummary() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey[200]!,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.psychology,
+                color: AppTheme.blueViolet,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'AI Generated Summary',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.darkGray,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Clinical Presentation
+          if (widget.summaryText.isNotEmpty) ...[
+            const Text(
+              'Clinical Presentation',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.darkGray,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              widget.summaryText,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.darkGray,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          // Key Features
+          if (summaryPoints.isNotEmpty) ...[
+            const Text(
+              'Key Features',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.darkGray,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...summaryPoints.take(3).map((point) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 6, right: 12),
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.blueViolet,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        point,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: AppTheme.darkGray,
+                          height: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            const SizedBox(height: 16),
+          ],
+          // Assessment
+          const Text(
+            'Assessment',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.darkGray,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'The constellation of symptoms necessitates prompt evaluation for etiologies ranging from infectious/post-infectious processes to metabolic derangement or early systemic illness.',
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppTheme.darkGray,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDifferentialDiagnosisTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          _buildDiagnosisSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSymptomAnalysisTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          // Present Symptoms
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.grey[200]!,
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Present Symptoms',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Extract symptoms from summary text
+                ..._extractSymptoms().map((symptom) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.grey[300]!,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            symptom,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.darkGray,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Sev: ${_getSymptomSeverity(symptom)}/10',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.red[700],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Negated Symptoms
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.grey[200]!,
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.cancel_outlined,
+                      color: Colors.grey,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Negated Symptoms',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.darkGray,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'No negated symptoms identified.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRAGEvidenceTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.grey[200]!,
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'RAG Evidence',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.darkGray,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'No RAG evidence available for this summary.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.mediumGray,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _extractSymptoms() {
+    // Simple extraction - in production this would be more sophisticated
+    final symptoms = <String>[];
+    final lowerText = widget.summaryText.toLowerCase();
+    
+    if (lowerText.contains('pain')) symptoms.add('pain');
+    if (lowerText.contains('fatigue')) symptoms.add('fatigue');
+    if (lowerText.contains('nausea')) symptoms.add('nausea');
+    if (lowerText.contains('fever')) symptoms.add('fever');
+    if (lowerText.contains('cough')) symptoms.add('cough');
+    if (lowerText.contains('headache')) symptoms.add('headache');
+    
+    return symptoms.isEmpty ? ['General discomfort'] : symptoms;
+  }
+
+  String _getSymptomSeverity(String symptom) {
+    // Simple severity calculation - in production this would be from data
+    final severityMap = {
+      'pain': '6',
+      'fatigue': '5',
+      'nausea': '3',
+      'fever': '4',
+      'cough': '4',
+      'headache': '5',
+    };
+    return severityMap[symptom] ?? '5';
+  }
+
   Widget _buildGlassCard({
     required String title,
     required Widget child,
@@ -758,40 +1210,27 @@ class _ClinicalSummaryDetailScreenState
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withOpacity(0.6),
+          color: Colors.grey[200]!,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.darkGray,
-                ),
-              ),
-              const SizedBox(height: 16),
-              child,
-            ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.darkGray,
+            ),
           ),
-        ),
+          const SizedBox(height: 16),
+          child,
+        ],
       ),
     );
   }

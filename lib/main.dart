@@ -3,11 +3,11 @@ import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
 
 void main() {
-  runApp(const MedoraApp());
+  runApp(const MyApp());
 }
 
-class MedoraApp extends StatelessWidget {
-  const MedoraApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {

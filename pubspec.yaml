@@ -12,6 +12,8 @@ dependencies:
   cupertino_icons: ^1.0.2
   http: ^1.1.0
   video_player: ^2.8.1
+  file_picker: ^8.0.0
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -20,3 +22,17 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/animations/blood_vessels.mp4
+    - assets/animations/body_general_uncertain.mp4
+    - assets/animations/body_hand_red.mp4
+    - assets/animations/body_leg_red.mp4
+    - assets/animations/brain.mp4
+    - assets/animations/intestines.mp4
+    - assets/animations/kidneys.mp4
+    - assets/animations/lungs.mp4
+    - assets/animations/nervous_system.mp4
+    - assets/animations/pancreas.mp4
+    - assets/animations/stomach.mp4
+    - assets/animations/WhatsApp Image 2026-01-24 at 6.29.19 PM (1).jpeg

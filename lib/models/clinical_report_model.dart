@@ -9,10 +9,12 @@ class ClinicalReportModel {
   final List<DifferentialDiagnosis> differentialDiagnoses;
   final int totalEvidenceRetrieved;
   final double? processingTimeSeconds;
+  final int? tokenCount;
   final List<String> warningMessages;
-  final List<String> redFlags;
+  final List<RedFlag> redFlags;
   final List<String> missingInformation;
   final String? errorMessage;
+  final String? originalText;
 
   ClinicalReportModel({
     required this.requestId,
@@ -22,10 +24,12 @@ class ClinicalReportModel {
     required this.differentialDiagnoses,
     this.totalEvidenceRetrieved = 0,
     this.processingTimeSeconds,
+    this.tokenCount,
     required this.warningMessages,
     required this.redFlags,
     required this.missingInformation,
     this.errorMessage,
+    this.originalText,
   });
 
   factory ClinicalReportModel.fromJson(Map<String, dynamic> json) {
@@ -42,19 +46,45 @@ class ClinicalReportModel {
           [],
       totalEvidenceRetrieved: json['total_evidence_retrieved'] as int? ?? 0,
       processingTimeSeconds: (json['processing_time_seconds'] as num?)?.toDouble(),
+      tokenCount: json['token_count'] as int? ?? json['total_tokens'] as int?,
       warningMessages: (json['warning_messages'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
-      redFlags: (json['red_flags'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          [],
+      redFlags: () {
+        final redFlagsList = json['red_flags'] as List<dynamic>?;
+        print('🔴 DEBUG: red_flags from JSON: $redFlagsList');
+        print('🔴 DEBUG: red_flags type: ${redFlagsList.runtimeType}');
+        print('🔴 DEBUG: red_flags length: ${redFlagsList?.length ?? 0}');
+        
+        if (redFlagsList == null || redFlagsList.isEmpty) {
+          print('🔴 DEBUG: No red flags found in response');
+          return <RedFlag>[];
+        }
+        
+        final parsed = redFlagsList.map((e) {
+          print('🔴 DEBUG: Parsing red flag item: $e (type: ${e.runtimeType})');
+          // Support both string format (backward compatibility) and structured format
+          if (e is String) {
+            print('🔴 DEBUG: Red flag is String, creating RedFlag with flag=$e');
+            return RedFlag(flag: e, severity: 'warning', keywords: []);
+          } else if (e is Map<String, dynamic>) {
+            print('🔴 DEBUG: Red flag is Map, parsing with fromJson');
+            return RedFlag.fromJson(e);
+          }
+          print('🔴 DEBUG: Red flag is unknown type, converting to string');
+          return RedFlag(flag: e.toString(), severity: 'warning', keywords: []);
+        }).toList();
+        
+        print('🔴 DEBUG: Parsed ${parsed.length} red flags');
+        return parsed;
+      }(),
       missingInformation: (json['missing_information'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],
       errorMessage: json['error_message'] as String?,
+      originalText: json['original_text'] as String?,
     );
   }
 }
@@ -223,4 +253,27 @@ class ConfidenceScore {
   }
 
   int get confidencePercent => (overallConfidence * 100).round();
+}
+
+class RedFlag {
+  final String flag;
+  final String severity; // "critical" or "warning"
+  final List<String> keywords;
+
+  RedFlag({
+    required this.flag,
+    required this.severity,
+    required this.keywords,
+  });
+
+  factory RedFlag.fromJson(Map<String, dynamic> json) {
+    return RedFlag(
+      flag: json['flag'] as String? ?? '',
+      severity: json['severity'] as String? ?? 'warning',
+      keywords: (json['keywords'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+    );
+  }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:ui';
+import 'dart:io';
 import 'package:video_player/video_player.dart';
 import '../utils/animation_selector.dart';
 import '../theme/app_theme.dart';
@@ -60,7 +62,7 @@ class _ClinicalAnimationPlayerState extends State<ClinicalAnimationPlayer>
     // Dispose old controller
     await _controller?.dispose();
 
-    // Load new video
+    // Try asset path first (works on all platforms)
     try {
       _controller = VideoPlayerController.asset(assetPath);
       await _controller!.initialize();
@@ -75,14 +77,69 @@ class _ClinicalAnimationPlayerState extends State<ClinicalAnimationPlayer>
 
       // Fade in new video
       _fadeController.forward();
+      return;
     } catch (e) {
-      // If video fails to load, show placeholder
-      setState(() {
-        _isInitialized = false;
-        _currentAsset = assetPath;
-      });
-      _fadeController.forward();
+      await _controller?.dispose();
+      
+      // Fallback: Try file path (only works on desktop, not mobile)
+      if (!kIsWeb && Platform.isWindows) {
+        // Map asset path to file path
+        String filePath;
+        if (assetPath.contains('blood_vessels')) {
+          filePath = r'C:\Medora\assets\animations\blood_vessels.mp4';
+        } else if (assetPath.contains('body_general_uncertain')) {
+          filePath = r'C:\Medora\assets\animations\body_general_uncertain.mp4';
+        } else if (assetPath.contains('brain')) {
+          filePath = r'C:\Medora\assets\animations\brain.mp4';
+        } else if (assetPath.contains('lungs')) {
+          filePath = r'C:\Medora\assets\animations\lungs.mp4';
+        } else if (assetPath.contains('pancreas')) {
+          filePath = r'C:\Medora\assets\animations\pancreas.mp4';
+        } else if (assetPath.contains('kidneys')) {
+          filePath = r'C:\Medora\assets\animations\kidneys.mp4';
+        } else if (assetPath.contains('stomach')) {
+          filePath = r'C:\Medora\assets\animations\stomach.mp4';
+        } else if (assetPath.contains('intestines')) {
+          filePath = r'C:\Medora\assets\animations\intestines.mp4';
+        } else if (assetPath.contains('nervous_system')) {
+          filePath = r'C:\Medora\assets\animations\nervous_system.mp4';
+        } else if (assetPath.contains('body_hand_red')) {
+          filePath = r'C:\Medora\assets\animations\body_hand_red.mp4';
+        } else if (assetPath.contains('body_leg_red')) {
+          filePath = r'C:\Medora\assets\animations\body_leg_red.mp4';
+        } else {
+          // Default fallback
+          filePath = r'C:\Medora\assets\animations\body_general_uncertain.mp4';
+        }
+        final videoFile = File(filePath);
+        
+        if (videoFile.existsSync()) {
+          try {
+            _controller = VideoPlayerController.file(videoFile);
+            await _controller!.initialize();
+            _controller!.setLooping(true);
+            _controller!.setVolume(0.0);
+            _controller!.play();
+            
+            setState(() {
+              _isInitialized = true;
+              _currentAsset = assetPath;
+            });
+            _fadeController.forward();
+            return;
+          } catch (_) {
+            // File path also failed, continue to placeholder
+          }
+        }
+      }
     }
+
+    // If both fail, show placeholder
+    setState(() {
+      _isInitialized = false;
+      _currentAsset = assetPath;
+    });
+    _fadeController.forward();
   }
 
   @override
@@ -196,9 +253,12 @@ class _ClinicalAnimationPlayerState extends State<ClinicalAnimationPlayer>
   }
 
   String _getAnimationLabel(String assetPath) {
+    if (assetPath.isEmpty) return 'Unknown';
     final fileName = assetPath.split('/').last.replaceAll('.mp4', '');
+    if (fileName.isEmpty) return 'Unknown';
     return fileName
         .split('_')
+        .where((word) => word.isNotEmpty)
         .map((word) => word[0].toUpperCase() + word.substring(1))
         .join(' ');
   }

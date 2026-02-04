@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:math' as math;
+import 'dart:convert';
+import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 import '../theme/app_theme.dart';
 import 'history_screen.dart';
 import 'clinical_summary_screen.dart';
+import '../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,601 +17,815 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late AnimationController _heroController;
-  late AnimationController _glowController;
-  late AnimationController _buttonController;
-  late AnimationController _iconController;
-
-  late Animation<double> _heroFade;
-  late Animation<Offset> _heroSlide;
-  late Animation<double> _glowAnimation;
-  late Animation<double> _buttonScale;
-  late List<Animation<double>> _iconFades;
+  late AnimationController _starsController;
+  late AnimationController _cardAnimationController;
 
   @override
   void initState() {
     super.initState();
-
-    // Hero card animation
-    _heroController = AnimationController(
+    _starsController = AnimationController(
+      duration: const Duration(seconds: 20),
+      vsync: this,
+    )..repeat();
+    _cardAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
-    );
-    _heroFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _heroController, curve: Curves.easeOut),
-    );
-    _heroSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _heroController, curve: Curves.easeOutCubic),
-    );
-
-    // Glow animation for AI body scan
-    _glowController = AnimationController(
-      duration: const Duration(milliseconds: 2000),
-      vsync: this,
-    )..repeat(reverse: true);
-    _glowAnimation = Tween<double>(begin: 0.3, end: 0.8).animate(
-      CurvedAnimation(parent: _glowController, curve: Curves.easeInOut),
-    );
-
-    // Button scale animation
-    _buttonController = AnimationController(
-      duration: const Duration(milliseconds: 150),
-      vsync: this,
-    );
-    _buttonScale = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _buttonController, curve: Curves.easeInOut),
-    );
-
-    // Icon staggered animations
-    _iconController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
-    _iconFades = List.generate(3, (index) {
-      return Tween<double>(begin: 0.0, end: 1.0).animate(
-        CurvedAnimation(
-          parent: _iconController,
-          curve: Interval(
-            index * 0.2,
-            0.6 + index * 0.2,
-            curve: Curves.easeOut,
-          ),
-        ),
-      );
-    });
-
-    // Start animations
-    _heroController.forward();
-    _iconController.forward();
+    )..forward();
   }
 
   @override
   void dispose() {
-    _heroController.dispose();
-    _glowController.dispose();
-    _buttonController.dispose();
-    _iconController.dispose();
+    _starsController.dispose();
+    _cardAnimationController.dispose();
     super.dispose();
   }
 
-  void _onButtonTap() {
-    _buttonController.forward().then((_) {
-      _buttonController.reverse();
-    });
+  void _onAnalyzeTap() {
     _showClinicalNoteInputDialog();
   }
 
   void _showClinicalNoteInputDialog() {
     final TextEditingController noteController = TextEditingController();
-    
+    final navigatorContext = context;
+
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
+      barrierColor: Colors.transparent,
+      builder: (BuildContext dialogContext) {
+        return Stack(
+          children: [
+            // Blurred background overlay - covers entire screen
+            Positioned.fill(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  color: Colors.black.withOpacity(0.5),
+                ),
+              ),
+            ),
+            // Dialog content
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+                child: Material(
+                  color: Colors.transparent,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Container(
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppTheme.blueViolet, AppTheme.violet],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.medical_information,
-                        color: Colors.white,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Enter Clinical Note',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.darkGray,
+                        color: const Color(0xFF1A2332).withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                      color: AppTheme.mediumGray,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                TextField(
-                  controller: noteController,
-                  maxLines: 8,
-                  decoration: InputDecoration(
-                    hintText: 'Paste or type the clinical note here...\n\nExample:\n58-year-old male presents with chest pain for 3 hours. Patient reports substernal pressure-like pain, 7/10 severity, radiating to left arm...',
-                    hintStyle: TextStyle(
-                      color: AppTheme.mediumGray.withOpacity(0.6),
-                      fontSize: 14,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppTheme.mediumGray.withOpacity(0.3),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: AppTheme.mediumGray.withOpacity(0.3),
-                      ),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                        color: AppTheme.blueViolet,
-                        width: 2,
-                      ),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppTheme.darkGray,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                      child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
-                          color: AppTheme.mediumGray,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: () {
-                        final noteText = noteController.text.trim();
-                        if (noteText.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter a clinical note'),
-                              backgroundColor: Colors.red,
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF00D4FF),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          );
-                          return;
-                        }
-                        Navigator.of(context).pop();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ClinicalSummaryScreen(
-                              noteText: noteText,
-                              patientId: 'PT-0001',
+                            child: const Icon(
+                              Icons.description,
+                              color: Colors.white,
+                              size: 24,
                             ),
                           ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.blueViolet,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                          const SizedBox(width: 16),
+                          const Expanded(
+                            child: Text(
+                              'Enter Clinical Note',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white),
+                            onPressed: () => Navigator.of(dialogContext).pop(),
+                          ),
+                        ],
                       ),
-                      child: const Text(
-                        'Generate Summary',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
+                    ),
+                    // Text area
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: Container(
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.1),
+                              width: 1,
+                            ),
+                          ),
+                          child: TextField(
+                            controller: noteController,
+                            maxLines: null,
+                            expands: true,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 14,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Paste or type the clinical note here...',
+                              hintStyle: TextStyle(
+                                color: Colors.black.withOpacity(0.4),
+                                fontSize: 14,
+                              ),
+                              contentPadding: const EdgeInsets.all(16),
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    // OR UPLOAD separator
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: Colors.white.withOpacity(0.2),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              'OR UPLOAD',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.5),
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Container(
+                              height: 1,
+                              color: Colors.white.withOpacity(0.2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Upload buttons
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildUploadButton(
+                              icon: Icons.image,
+                              label: 'Image',
+                              iconColor: const Color(0xFF10B981),
+                              onTap: () => _pickAndUpload(dialogContext, navigatorContext, isPdf: false),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildUploadButton(
+                              icon: Icons.picture_as_pdf,
+                              label: 'PDF',
+                              iconColor: const Color(0xFF00D4FF),
+                              onTap: () => _pickAndUpload(dialogContext, navigatorContext, isPdf: true),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    // Action buttons
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => Navigator.of(dialogContext).pop(),
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                backgroundColor: const Color(0xFF0F172A),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFF00D4FF), Color(0xFF10B981)],
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF00D4FF).withOpacity(0.3),
+                                    blurRadius: 12,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () {
+                                    final noteText = noteController.text.trim();
+                                    if (noteText.isEmpty) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Please enter a clinical note or upload a file'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    Navigator.of(dialogContext).pop();
+                                    Navigator.push(
+                                      navigatorContext,
+                                      MaterialPageRoute(
+                                        builder: (context) => ClinicalSummaryScreen(
+                                          noteText: noteText,
+                                          patientId: 'PT-0001',
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Center(
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        const Flexible(
+                                          child: Text(
+                                            'Generate\nSummary',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              height: 1.2,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Stack(
+                                          children: [
+                                            const Icon(
+                                              Icons.auto_awesome,
+                                              color: Colors.white,
+                                              size: 20,
+                                            ),
+                                            Positioned(
+                                              right: -2,
+                                              top: -2,
+                                              child: Icon(
+                                                Icons.auto_awesome,
+                                                color: Colors.white.withOpacity(0.6),
+                                                size: 8,
+                                              ),
+                                            ),
+                                            Positioned(
+                                              left: -2,
+                                              bottom: -2,
+                                              child: Icon(
+                                                Icons.auto_awesome,
+                                                color: Colors.white.withOpacity(0.6),
+                                                size: 8,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
-              ],
-            ),
-          ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildUploadButton({
+    required IconData icon,
+    required String label,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              AppTheme.lightLavender,
-              AppTheme.softBlue,
-              AppTheme.lightPink,
-            ],
-            stops: [0.0, 0.5, 1.0],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Top Section
-              _buildTopSection(),
-              
-              // Main Content
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      // Hero Card
-                      SlideTransition(
-                        position: _heroSlide,
-                        child: FadeTransition(
-                          opacity: _heroFade,
-                          child: _buildHeroCard(),
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      // Quick Action Row
-                      _buildQuickActionRow(),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavigation(),
-    );
-  }
-
-  Widget _buildTopSection() {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      backgroundColor: const Color(0xFF0A1628),
+      body: Stack(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Good evening, Doctor',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.darkGray,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'AI-powered clinical insights',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.mediumGray,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
+          // Animated star background
+          AnimatedBuilder(
+            animation: _starsController,
+            builder: (context, child) {
+              return CustomPaint(
+                painter: StarsPainter(_starsController.value),
+                size: Size.infinite,
+              );
+            },
           ),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  AppTheme.blueViolet.withOpacity(0.8),
-                  AppTheme.violet.withOpacity(0.8),
-                ],
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.blueViolet.withOpacity(0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+          // Main content
+          SafeArea(
+            child: Column(
+              children: [
+                // Header
+                _buildHeader(),
+                // Main content
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 20),
+                        // Badge
+                        _buildBadge(),
+                        const SizedBox(height: 24),
+                        // Title
+                        _buildTitle(),
+                        const SizedBox(height: 16),
+                        // Description
+                        _buildDescription(),
+                        const SizedBox(height: 32),
+                        // Cards
+                        _buildCards(),
+                        const SizedBox(height: 24),
+                        // Compliance badges
+                        _buildComplianceBadges(),
+                        const SizedBox(height: 32),
+                        // Generate Summary button
+                        _buildGenerateButton(),
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
-            child: const Icon(
-              Icons.person,
-              color: Colors.white,
-              size: 24,
-            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: null, // Removed bottom navigation
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Logo
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00D4FF),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Center(
+                  child: Text(
+                    'M',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Medora',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          // Right icons
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                color: Colors.white,
+                onPressed: () {},
+              ),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFF00D4FF),
+                    width: 2,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: Color(0xFF00D4FF),
+                  size: 24,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildHeroCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.6),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.8),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // AI Body Scan Illustration
-              _buildAIBodyScan(),
-              const SizedBox(height: 24),
-              const Text(
-                'Generate Clinical Summary',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.darkGray,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Analyze clinical notes with explainable AI',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.mediumGray,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 24),
-              // CTA Button
-              ScaleTransition(
-                scale: _buttonScale,
-                child: GestureDetector(
-                  onTap: _onButtonTap,
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.blueViolet, AppTheme.violet],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.blueViolet.withOpacity(0.4),
-                          blurRadius: 12,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: const Text(
-                      'Start Analysis',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+  Widget _buildBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: const Color(0xFF00D4FF).withOpacity(0.5),
+          width: 1,
         ),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.auto_awesome,
+            size: 14,
+            color: Color(0xFF00D4FF),
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'ADVANCED AI CO-PILOT',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF00D4FF),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.auto_awesome,
+            size: 14,
+            color: Color(0xFF00D4FF),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildAIBodyScan() {
-    return AnimatedBuilder(
-      animation: _glowAnimation,
-      builder: (context, child) {
-        return Container(
-          height: 180,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: RadialGradient(
-              center: Alignment.center,
-              colors: [
-                AppTheme.blueViolet.withOpacity(_glowAnimation.value * 0.3),
-                AppTheme.violet.withOpacity(_glowAnimation.value * 0.1),
-                Colors.transparent,
-              ],
-            ),
+  Widget _buildTitle() {
+    return RichText(
+      text: const TextSpan(
+        style: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          height: 1.2,
+        ),
+        children: [
+          TextSpan(
+            text: 'The AI Co-Pilot for\n',
+            style: TextStyle(color: Colors.white),
           ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              // Placeholder body outline
-              CustomPaint(
-                size: const Size(120, 180),
-                painter: BodyScanPainter(
-                  glowIntensity: _glowAnimation.value,
-                ),
-              ),
-            ],
+          TextSpan(
+            text: 'Diagnostic Certainty.',
+            style: TextStyle(color: Color(0xFF00D4FF)),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
-  Widget _buildQuickActionRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildDescription() {
+    return const Text(
+      'Elevating clinical outcomes with real-time medical evidence synthesis and patient data analysis.',
+      style: TextStyle(
+        fontSize: 16,
+        color: Colors.white70,
+        height: 1.5,
+      ),
+    );
+  }
+
+  Widget _buildCards() {
+    return Column(
       children: [
-        _buildQuickActionCard(
-          icon: Icons.calendar_today,
-          label: 'History',
-          color: AppTheme.historyIcon,
+        _buildCard(
+          icon: Icons.description,
+          iconColor: const Color(0xFF00D4FF),
+          title: 'Analyze Patient Note',
+          description: 'Extract clinical facts & insights',
+          onTap: _onAnalyzeTap,
           index: 0,
+        ),
+        const SizedBox(height: 16),
+        _buildCard(
+          icon: Icons.history,
+          iconColor: const Color(0xFF00E5CC),
+          title: 'History',
+          description: 'Recent diagnoses and reviews',
           onTap: () {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const HistoryScreen()),
             );
           },
-        ),
-        _buildQuickActionCard(
-          icon: Icons.favorite,
-          label: 'Diagnoses',
-          color: AppTheme.diagnosesIcon,
           index: 1,
         ),
-        _buildQuickActionCard(
-          icon: Icons.description,
-          label: 'Raw Notes',
-          color: AppTheme.notesIcon,
+        const SizedBox(height: 16),
+        _buildCard(
+          icon: Icons.assessment,
+          iconColor: const Color(0xFFFFB84D),
+          title: 'Risk Assessment',
+          description: 'Predictive health analytics',
+          onTap: () {},
           index: 2,
         ),
       ],
     );
   }
 
-  Widget _buildQuickActionCard({
+  Widget _buildCard({
     required IconData icon,
-    required String label,
-    required Color color,
+    required Color iconColor,
+    required String title,
+    required String description,
+    required VoidCallback onTap,
     required int index,
-    VoidCallback? onTap,
   }) {
     return FadeTransition(
-      opacity: _iconFades[index],
+      opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _cardAnimationController,
+          curve: Interval(
+            index * 0.2,
+            0.6 + index * 0.2,
+            curve: Curves.easeOut,
+          ),
+        ),
+      ),
       child: GestureDetector(
-        onTap: onTap ?? () {
-          // TODO: Navigate to respective screens
-        },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              width: (MediaQuery.of(context).size.width - 60) / 3,
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.6),
-                  width: 1,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A2332).withOpacity(0.8),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 24,
                 ),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.15),
-                      shape: BoxShape.circle,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
                     ),
-                    child: Icon(
-                      icon,
-                      color: color,
-                      size: 24,
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white.withOpacity(0.6),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.darkGray,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white54,
+                size: 16,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildBottomNavigation() {
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
-            border: Border(
-              top: BorderSide(
+  Widget _buildComplianceBadges() {
+    return Row(
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.check_circle,
+              size: 16,
+              color: Color(0xFF10B981),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'HIPAA COMPLIANT',
+              style: TextStyle(
+                fontSize: 11,
                 color: Colors.white.withOpacity(0.5),
-                width: 1,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
               ),
             ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildNavItem(Icons.home, 'Home', true),
-                  _buildNavItem(Icons.history, 'History', false),
-                  _buildNavItem(Icons.add_circle_outline, 'New Summary', false, onTap: () {
-                    _showClinicalNoteInputDialog();
-                  }),
-                  _buildNavItem(Icons.person_outline, 'Profile', false),
-                ],
+          ],
+        ),
+        const SizedBox(width: 20),
+        Row(
+          children: [
+            const Icon(
+              Icons.lock,
+              size: 16,
+              color: Colors.white54,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'SOC 2 TYPE II',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.white.withOpacity(0.5),
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
               ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenerateButton() {
+    return Container(
+      width: double.infinity,
+      height: 56,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF00D4FF), Color(0xFF0099CC)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF00D4FF).withOpacity(0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _onAnalyzeTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Generate Summary',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Stack(
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white.withOpacity(0.6),
+                        size: 8,
+                      ),
+                    ),
+                    Positioned(
+                      left: -2,
+                      bottom: -2,
+                      child: Icon(
+                        Icons.auto_awesome,
+                        color: Colors.white.withOpacity(0.6),
+                        size: 8,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
@@ -615,10 +833,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildNavItem(IconData icon, String label, bool isActive, {VoidCallback? onTap}) {
+  Widget _buildBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2332),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withOpacity(0.1),
+            width: 1,
+          ),
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(Icons.home, 'Home', true),
+              _buildNavItem(Icons.folder, 'Cases', false),
+              _buildNavItem(Icons.search, 'Search', false),
+              _buildNavItem(Icons.settings, 'Settings', false),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData icon, String label, bool isActive) {
     return GestureDetector(
-      onTap: onTap ?? () {
-        if (label == 'History') {
+      onTap: () {
+        if (label == 'Cases') {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const HistoryScreen()),
@@ -630,96 +876,353 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           Icon(
             icon,
-            color: isActive ? AppTheme.blueViolet : AppTheme.mediumGray,
+            color: isActive ? const Color(0xFF00D4FF) : Colors.white54,
             size: 24,
           ),
           const SizedBox(height: 4),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-              color: isActive ? AppTheme.blueViolet : AppTheme.mediumGray,
+              color: isActive ? const Color(0xFF00D4FF) : Colors.white54,
             ),
           ),
         ],
       ),
     );
   }
+
+  Future<void> _pickAndUpload(
+    BuildContext dialogContext,
+    BuildContext navigatorContext, {
+    required bool isPdf,
+  }) async {
+    // #region agent log
+    try {
+      final logData = {
+        'location': 'home_screen.dart:894',
+        'message': '_pickAndUpload called',
+        'data': {'isPdf': isPdf},
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'sessionId': 'debug-session',
+        'runId': 'upload-check',
+        'hypothesisId': 'A',
+      };
+      await http.post(
+        Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(logData),
+      ).catchError((_) {});
+    } catch (_) {}
+    // #endregion
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: isPdf ? FileType.custom : FileType.image,
+        allowedExtensions: isPdf ? ['pdf'] : null,
+        withData: true,
+      );
+      
+      // #region agent log
+      try {
+        final logData = {
+          'location': 'home_screen.dart:910',
+          'message': 'FilePicker result',
+          'data': {
+            'resultIsNull': result == null,
+            'filesCount': result?.files.length ?? 0,
+          },
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'sessionId': 'debug-session',
+          'runId': 'upload-check',
+          'hypothesisId': 'A',
+        };
+        await http.post(
+          Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(logData),
+        ).catchError((_) {});
+      } catch (_) {}
+      // #endregion
+      
+      if (result == null || result.files.isEmpty) return;
+      final f = result.files.first;
+      final path = f.path;
+      final bytes = f.bytes;
+      final usePath = path != null && path.isNotEmpty;
+      final useBytes = bytes != null && bytes.isNotEmpty;
+      
+      // #region agent log
+      try {
+        final logData = {
+          'location': 'home_screen.dart:925',
+          'message': 'File data extracted',
+          'data': {
+            'fileName': f.name,
+            'hasPath': path != null,
+            'pathLength': path?.length ?? 0,
+            'hasBytes': bytes != null,
+            'bytesLength': bytes?.length ?? 0,
+            'usePath': usePath,
+            'useBytes': useBytes,
+          },
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'sessionId': 'debug-session',
+          'runId': 'upload-check',
+          'hypothesisId': 'A',
+        };
+        await http.post(
+          Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(logData),
+        ).catchError((_) {});
+      } catch (_) {}
+      // #endregion
+      
+      if (!usePath && !useBytes) {
+        // #region agent log
+        try {
+          final logData = {
+            'location': 'home_screen.dart:945',
+            'message': 'File read failed - no path or bytes',
+            'data': {},
+            'timestamp': DateTime.now().millisecondsSinceEpoch,
+            'sessionId': 'debug-session',
+            'runId': 'upload-check',
+            'hypothesisId': 'B',
+          };
+          await http.post(
+            Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(logData),
+          ).catchError((_) {});
+        } catch (_) {}
+        // #endregion
+        if (!mounted) return;
+        ScaffoldMessenger.of(navigatorContext).showSnackBar(
+          const SnackBar(
+            content: Text('Could not read file. Try a different file.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      final fileName = (f.name.trim().isEmpty) ? 'upload' : f.name;
+      if (!mounted) return;
+      
+      // Show uploading message before closing dialog
+      ScaffoldMessenger.of(navigatorContext).showSnackBar(
+        const SnackBar(content: Text('Uploading & analyzing…')),
+      );
+      
+      // #region agent log
+      try {
+        final logData = {
+          'location': 'home_screen.dart:965',
+          'message': 'Calling ApiService.uploadClinicalNote',
+          'data': {
+            'fileName': fileName,
+            'usePath': usePath,
+            'useBytes': useBytes,
+          },
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'sessionId': 'debug-session',
+          'runId': 'upload-check',
+          'hypothesisId': 'C',
+        };
+        await http.post(
+          Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(logData),
+        ).catchError((_) {});
+      } catch (_) {}
+      // #endregion
+      
+      // Close dialog before async operation to avoid context issues
+      if (mounted && Navigator.of(dialogContext).canPop()) {
+        Navigator.of(dialogContext).pop();
+      }
+      
+      final json = await ApiService.uploadClinicalNote(
+        filePath: usePath ? path : null,
+        fileBytes: useBytes ? bytes : null,
+        fileName: fileName,
+        patientId: 'PT-0001',
+      );
+      
+      // #region agent log
+      try {
+        final logData = {
+          'location': 'home_screen.dart:978',
+          'message': 'ApiService.uploadClinicalNote completed',
+          'data': {
+            'hasJson': json != null,
+            'jsonKeys': json?.keys.toList() ?? [],
+          },
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'sessionId': 'debug-session',
+          'runId': 'upload-check',
+          'hypothesisId': 'C',
+        };
+        await http.post(
+          Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(logData),
+        ).catchError((_) {});
+      } catch (_) {}
+      // #endregion
+      
+      if (!mounted) return;
+      
+      // Navigate to summary screen
+      Navigator.push(
+        navigatorContext,
+        MaterialPageRoute(
+          builder: (_) => ClinicalSummaryScreen(
+            initialReport: json,
+            patientId: 'PT-0001',
+          ),
+        ),
+      );
+      
+      // Show success message after navigation
+      if (mounted) {
+        // Use a post-frame callback to ensure context is valid
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            try {
+              ScaffoldMessenger.of(navigatorContext).showSnackBar(
+                const SnackBar(content: Text('Analysis complete'), backgroundColor: Colors.green),
+              );
+            } catch (_) {
+              // Ignore if context is invalid
+            }
+          }
+        });
+      }
+    } catch (e, stackTrace) {
+      // #region agent log
+      try {
+        final logData = {
+          'location': 'home_screen.dart:1000',
+          'message': 'Exception in _pickAndUpload',
+          'data': {
+            'error': e.toString(),
+            'errorType': e.runtimeType.toString(),
+            'stackTrace': stackTrace.toString(),
+          },
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'sessionId': 'debug-session',
+          'runId': 'upload-check',
+          'hypothesisId': 'D',
+        };
+        await http.post(
+          Uri.parse('http://127.0.0.1:7242/ingest/e7c7bc3b-02cf-4cf7-86b7-7d0c5029d869'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(logData),
+        ).catchError((_) {});
+      } catch (_) {}
+      // #endregion
+      
+      // Close dialog if still open
+      if (mounted && Navigator.of(dialogContext).canPop()) {
+        Navigator.of(dialogContext).pop();
+      }
+      
+      if (!mounted) return;
+      
+      final msg = e.toString().contains('LateInitializationError')
+          ? 'App state error. Please try again.'
+          : 'Upload failed: $e';
+      
+      // Use post-frame callback to safely show error
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          try {
+            ScaffoldMessenger.of(navigatorContext).showSnackBar(
+              SnackBar(content: Text(msg), backgroundColor: Colors.red),
+            );
+          } catch (_) {
+            // Ignore if context is invalid - error already logged
+          }
+        }
+      });
+    }
+  }
 }
 
-class BodyScanPainter extends CustomPainter {
-  final double glowIntensity;
+class _UploadRow extends StatelessWidget {
+  final VoidCallback onUploadImage;
+  final VoidCallback onUploadPdf;
 
-  BodyScanPainter({required this.glowIntensity});
+  const _UploadRow({
+    required this.onUploadImage,
+    required this.onUploadPdf,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onUploadImage,
+            icon: const Icon(Icons.image, size: 18),
+            label: const Text('Image'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: onUploadPdf,
+            icon: const Icon(Icons.picture_as_pdf, size: 18),
+            label: const Text('PDF'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Custom painter for animated stars background
+class StarsPainter extends CustomPainter {
+  final double animationValue;
+
+  StarsPainter(this.animationValue);
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    // Draw body outline (simplified human silhouette)
     final paint = Paint()
-      ..color = AppTheme.blueViolet.withOpacity(0.6)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..color = Colors.white.withOpacity(0.3)
+      ..style = PaintingStyle.fill;
 
-    // Head
-    canvas.drawCircle(
-      Offset(centerX, centerY - size.height * 0.35),
-      size.width * 0.15,
-      paint,
-    );
-
-    // Body
-    final bodyPath = Path()
-      ..moveTo(centerX, centerY - size.height * 0.2)
-      ..lineTo(centerX - size.width * 0.12, centerY + size.height * 0.15)
-      ..lineTo(centerX - size.width * 0.08, centerY + size.height * 0.25)
-      ..lineTo(centerX, centerY + size.height * 0.2)
-      ..lineTo(centerX + size.width * 0.08, centerY + size.height * 0.25)
-      ..lineTo(centerX + size.width * 0.12, centerY + size.height * 0.15)
-      ..close();
-
-    canvas.drawPath(bodyPath, paint);
-
-    // Arms
-    canvas.drawLine(
-      Offset(centerX - size.width * 0.12, centerY - size.height * 0.1),
-      Offset(centerX - size.width * 0.25, centerY + size.height * 0.1),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(centerX + size.width * 0.12, centerY - size.height * 0.1),
-      Offset(centerX + size.width * 0.25, centerY + size.height * 0.1),
-      paint,
-    );
-
-    // Legs
-    canvas.drawLine(
-      Offset(centerX - size.width * 0.08, centerY + size.height * 0.25),
-      Offset(centerX - size.width * 0.1, centerY + size.height * 0.4),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(centerX + size.width * 0.08, centerY + size.height * 0.25),
-      Offset(centerX + size.width * 0.1, centerY + size.height * 0.4),
-      paint,
-    );
-
-    // Glow effect
-    final glowPaint = Paint()
-      ..color = AppTheme.violet.withOpacity(glowIntensity * 0.3)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 20);
-
-    canvas.drawCircle(
-      Offset(centerX, centerY),
-      size.width * 0.4,
-      glowPaint,
-    );
+    final random = math.Random(42);
+    for (int i = 0; i < 50; i++) {
+      final x = (random.nextDouble() * size.width);
+      final y = (random.nextDouble() * size.height);
+      final radius = 1 + random.nextDouble() * 2;
+      final opacity = 0.3 + (math.sin(animationValue * 2 * math.pi + i) + 1) / 2 * 0.4;
+      
+      canvas.drawCircle(
+        Offset(x, y),
+        radius,
+        paint..color = Colors.white.withOpacity(opacity),
+      );
+    }
   }
 
   @override
-  bool shouldRepaint(BodyScanPainter oldDelegate) =>
-      oldDelegate.glowIntensity != glowIntensity;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
