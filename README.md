@@ -1,3 +1,11 @@
+
+
+https://github.com/user-attachments/assets/6d056ca2-02a4-492b-943d-0ca5797098c2
+
+
+
+https://github.com/user-attachments/assets/f22426d1-f586-424d-a83d-ac820f3c6f55
+
 # Medora – Healthcare Flutter App
 
 A Flutter-based Android application built as part of the Inter-IIIT Hackathon, designed to act as the primary clinician-facing interface for a RAG-powered clinical decision support system.
